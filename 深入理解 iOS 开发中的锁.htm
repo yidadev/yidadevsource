@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<!-- saved from url=(0044)https://bestswifter.com/ios-lock/#osspinlock -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>深入理解 iOS 开发中的锁</title>
+    
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="HandheldFriendly" content="True">
+<meta name="MobileOptimized" content="320">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+
+<link rel="apple-touch-icon" sizes="57x57" href="https://bestswifter.com/assets/img/apple-touch-icon-57x57.png?v=wAAv6Wqe6l">
+<link rel="apple-touch-icon" sizes="60x60" href="https://bestswifter.com/assets/img/apple-touch-icon-60x60.png?v=wAAv6Wqe6l">
+<link rel="apple-touch-icon" sizes="72x72" href="https://bestswifter.com/assets/img/apple-touch-icon-72x72.png?v=wAAv6Wqe6l">
+<link rel="apple-touch-icon" sizes="76x76" href="https://bestswifter.com/assets/img/apple-touch-icon-76x76.png?v=wAAv6Wqe6l">
+<link rel="apple-touch-icon" sizes="114x114" href="https://bestswifter.com/assets/img/apple-touch-icon-114x114.png?v=wAAv6Wqe6l">
+<link rel="apple-touch-icon" sizes="120x120" href="https://bestswifter.com/assets/img/apple-touch-icon-120x120.png?v=wAAv6Wqe6l">
+<link rel="apple-touch-icon" sizes="144x144" href="https://bestswifter.com/assets/img/apple-touch-icon-144x144.png?v=wAAv6Wqe6l">
+<link rel="apple-touch-icon" sizes="152x152" href="https://bestswifter.com/assets/img/apple-touch-icon-152x152.png?v=wAAv6Wqe6l">
+<link rel="apple-touch-icon" sizes="180x180" href="https://bestswifter.com/assets/img/apple-touch-icon-180x180.png?v=wAAv6Wqe6l">
+<link rel="icon" type="image/png" href="https://bestswifter.com/assets/img/favicon-32x32.png?v=wAAv6Wqe6l" sizes="32x32">
+<link rel="icon" type="image/png" href="https://bestswifter.com/assets/img/favicon-194x194.png?v=wAAv6Wqe6l" sizes="194x194">
+<link rel="icon" type="image/png" href="https://bestswifter.com/assets/img/favicon-96x96.png?v=wAAv6Wqe6l" sizes="96x96">
+<link rel="icon" type="image/png" href="https://bestswifter.com/assets/img/android-chrome-192x192.png?v=wAAv6Wqe6l" sizes="192x192">
+<link rel="icon" type="image/png" href="https://bestswifter.com/assets/img/favicon-16x16.png?v=wAAv6Wqe6l" sizes="16x16">
+<link rel="manifest" href="https://bestswifter.com/assets/img/manifest.json?v=wAAv6Wqe6l">
+<link rel="shortcut icon" href="https://bestswifter.com/assets/img/favicon.ico?v=wAAv6Wqe6l">
+<meta name="msapplication-TileColor" content="#e74c3c">
+<meta name="msapplication-TileImage" content="/assets/img/mstile-144x144.png?v=wAAv6Wqe6l">
+<meta name="msapplication-config" content="/assets/img/browserconfig.xml?v=wAAv6Wqe6l">
+<meta name="theme-color" content="#e74c3c">
+    <link href="./深入理解 iOS 开发中的锁_files/css" rel="stylesheet" type="text/css">
+    <link rel="stylesheet" type="text/css" href="./深入理解 iOS 开发中的锁_files/uno-zen.css">
+    <link rel="stylesheet" href="./深入理解 iOS 开发中的锁_files/tomorrow.css">
+    <link href="./深入理解 iOS 开发中的锁_files/font-awesome.min.css" rel="stylesheet">
+    <link rel="canonical" href="https://bestswifter.com/ios-lock/">
+    <meta name="referrer" content="origin">
+    
+    <meta property="og:site_name" content="bestswifter">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="深入理解 iOS 开发中的锁">
+    <meta property="og:description" content="摘要 本文的目的不是介绍 iOS 中各种锁如何使用，一方面笔者没有大量的实战经验，另一方面这样的文章相当多，比如 iOS中保证线程安全的几种方式与性能对比、iOS 常见知识点（三）：Lock。本文也不会详细介绍锁的具体实现原理，这会涉及到太多相关知识，笔者不敢误人子弟。 本文要做的就是简单的分析 iOS 开发中常见的几种锁如何实现，以及优缺点是什么，为什么会有性能上的差距，最终会简单的介绍锁的底层实现原理。水平有限，如果不慎有误，欢迎交流指正。同时建议读者在阅读本文以前，对 OC 中各种锁的使用方法先有大概的认识。 在 ibireme 的 不再安全的 OSSpinLock 一文中，有一张图片简单的比较了各种锁的加解锁性能: 本文会按照从上至下(速度由快至慢)的顺序分析每个锁的实现原理。需要说明的是，加解锁速度不表示锁的效率，...">
+    <meta property="og:url" content="https://bestswifter.com/ios-lock/">
+    <meta property="article:published_time" content="2016-10-07T00:16:22.000Z">
+    <meta property="article:modified_time" content="2018-02-16T13:06:36.000Z">
+    
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="深入理解 iOS 开发中的锁">
+    <meta name="twitter:description" content="摘要 本文的目的不是介绍 iOS 中各种锁如何使用，一方面笔者没有大量的实战经验，另一方面这样的文章相当多，比如 iOS中保证线程安全的几种方式与性能对比、iOS 常见知识点（三）：Lock。本文也不会详细介绍锁的具体实现原理，这会涉及到太多相关知识，笔者不敢误人子弟。 本文要做的就是简单的分析 iOS 开发中常见的几种锁如何实现，以及优缺点是什么，为什么会有性能上的差距，最终会简单的介绍锁的底层实现原理。水平有限，如果不慎有误，欢迎交流指正。同时建议读者在阅读本文以前，对 OC 中各种锁的使用方法先有大概的认识。 在 ibireme 的 不再安全的 OSSpinLock 一文中，有一张图片简单的比较了各种锁的加解锁性能: 本文会按照从上至下(速度由快至慢)的顺序分析每个锁的实现原理。需要说明的是，加解锁速度不表示锁的效率，...">
+    <meta name="twitter:url" content="https://bestswifter.com/ios-lock/">
+    
+    <script src="./深入理解 iOS 开发中的锁_files/push.js"></script><script src="./深入理解 iOS 开发中的锁_files/hm.js"></script><script type="application/ld+json">
+{
+    "@context": "http://schema.org",
+    "@type": "Article",
+    "publisher": "bestswifter",
+    "author": {
+        "@type": "Person",
+        "name": "张星宇",
+        "url": "https://bestswifter.com/author/zhang",
+        "sameAs": "http://fullstack.blog",
+        "description": null
+    },
+    "headline": "深入理解 iOS 开发中的锁",
+    "url": "https://bestswifter.com/ios-lock/",
+    "datePublished": "2016-10-07T00:16:22.000Z",
+    "dateModified": "2018-02-16T13:06:36.000Z",
+    "description": "摘要 本文的目的不是介绍 iOS 中各种锁如何使用，一方面笔者没有大量的实战经验，另一方面这样的文章相当多，比如 iOS中保证线程安全的几种方式与性能对比、iOS 常见知识点（三）：Lock。本文也不会详细介绍锁的具体实现原理，这会涉及到太多相关知识，笔者不敢误人子弟。 本文要做的就是简单的分析 iOS 开发中常见的几种锁如何实现，以及优缺点是什么，为什么会有性能上的差距，最终会简单的介绍锁的底层实现原理。水平有限，如果不慎有误，欢迎交流指正。同时建议读者在阅读本文以前，对 OC 中各种锁的使用方法先有大概的认识。 在 ibireme 的 不再安全的 OSSpinLock 一文中，有一张图片简单的比较了各种锁的加解锁性能: 本文会按照从上至下(速度由快至慢)的顺序分析每个锁的实现原理。需要说明的是，加解锁速度不表示锁的效率，..."
+}
+    </script>
+
+    <meta name="generator" content="Ghost 0.7">
+    <link rel="alternate" type="application/rss+xml" title="bestswifter" href="https://bestswifter.com/rss/">
+    <script>
+var posts_headline = 'ä½œå“é›† ';
+var profile_title = 'bestswifter';
+var open_button = '.nav-posts > a';
+//var disqus_shortname = 'bestswifter';
+</script>
+
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "//hm.baidu.com/hm.js?a5692a7e19c32836d83a21539b9eb759";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+<meta name="google-site-verification" content="aKUww845VHrvl-EkVVQWuNZIOis6q5_EjD0toP9e3nU">
+<script type="text/javascript" src="./深入理解 iOS 开发中的锁_files/markjax.min.js"></script><script type="text/x-mathjax-config;executed=true">MathJax.Hub.Config({  showProcessingMessages: false,  messageStyle: "none",  skipStartupTypeset: false,  tex2jax: {    inlineMath: [['$','$']],    displayMath: [['$$', '$$']],    ignoreClass: ".*",    processClass: "mathjax"  },  TeX: {    equationNumbers: {      autoNumber: "AMS"    }  }});</script><script type="text/javascript" src="./深入理解 iOS 开发中的锁_files/MathJax.js"></script><link rel="stylesheet" href="./深入理解 iOS 开发中的锁_files/katex.min.css"><link rel="stylesheet" href="./深入理解 iOS 开发中的锁_files/default.min.css">
+  <style type="text/css">.MathJax_Preview {color: #888}
+#MathJax_Message {position: fixed; left: 1em; bottom: 1.5em; background-color: #E6E6E6; border: 1px solid #959595; margin: 0px; padding: 2px 8px; z-index: 102; color: black; font-size: 80%; width: auto; white-space: nowrap}
+#MathJax_MSIE_Frame {position: absolute; top: 0; left: 0; width: 0px; z-index: 101; border: 0px; margin: 0px; padding: 0px}
+.MathJax_Error {color: #CC0000; font-style: italic}
+</style><style id="fit-vids-style">.fluid-width-video-wrapper{width:100%;position:relative;padding:0;}.fluid-width-video-wrapper iframe,.fluid-width-video-wrapper object,.fluid-width-video-wrapper embed {position:absolute;top:0;left:0;width:100%;height:100%;}</style><style type="text/css">#MathJax_About {position: fixed; left: 50%; width: auto; text-align: center; border: 3px outset; padding: 1em 2em; background-color: #DDDDDD; color: black; cursor: default; font-family: message-box; font-size: 120%; font-style: normal; text-indent: 0; text-transform: none; line-height: normal; letter-spacing: normal; word-spacing: normal; word-wrap: normal; white-space: nowrap; float: none; z-index: 201; border-radius: 15px; -webkit-border-radius: 15px; -moz-border-radius: 15px; -khtml-border-radius: 15px; box-shadow: 0px 10px 20px #808080; -webkit-box-shadow: 0px 10px 20px #808080; -moz-box-shadow: 0px 10px 20px #808080; -khtml-box-shadow: 0px 10px 20px #808080; filter: progid:DXImageTransform.Microsoft.dropshadow(OffX=2, OffY=2, Color='gray', Positive='true')}
+#MathJax_About.MathJax_MousePost {outline: none}
+.MathJax_Menu {position: absolute; background-color: white; color: black; width: auto; padding: 5px 0px; border: 1px solid #CCCCCC; margin: 0; cursor: default; font: menu; text-align: left; text-indent: 0; text-transform: none; line-height: normal; letter-spacing: normal; word-spacing: normal; word-wrap: normal; white-space: nowrap; float: none; z-index: 201; border-radius: 5px; -webkit-border-radius: 5px; -moz-border-radius: 5px; -khtml-border-radius: 5px; box-shadow: 0px 10px 20px #808080; -webkit-box-shadow: 0px 10px 20px #808080; -moz-box-shadow: 0px 10px 20px #808080; -khtml-box-shadow: 0px 10px 20px #808080; filter: progid:DXImageTransform.Microsoft.dropshadow(OffX=2, OffY=2, Color='gray', Positive='true')}
+.MathJax_MenuItem {padding: 1px 2em; background: transparent}
+.MathJax_MenuArrow {position: absolute; right: .5em; padding-top: .25em; color: #666666; font-size: .75em}
+.MathJax_MenuActive .MathJax_MenuArrow {color: white}
+.MathJax_MenuArrow.RTL {left: .5em; right: auto}
+.MathJax_MenuCheck {position: absolute; left: .7em}
+.MathJax_MenuCheck.RTL {right: .7em; left: auto}
+.MathJax_MenuRadioCheck {position: absolute; left: .7em}
+.MathJax_MenuRadioCheck.RTL {right: .7em; left: auto}
+.MathJax_MenuLabel {padding: 1px 2em 3px 1.33em; font-style: italic}
+.MathJax_MenuRule {border-top: 1px solid #DDDDDD; margin: 4px 3px}
+.MathJax_MenuDisabled {color: GrayText}
+.MathJax_MenuActive {background-color: #606872; color: white}
+.MathJax_MenuDisabled:focus, .MathJax_MenuLabel:focus {background-color: #E8E8E8}
+.MathJax_ContextMenu:focus {outline: none}
+.MathJax_ContextMenu .MathJax_MenuItem:focus {outline: none}
+#MathJax_AboutClose {top: .2em; right: .2em}
+.MathJax_Menu .MathJax_MenuClose {top: -10px; left: -10px}
+.MathJax_MenuClose {position: absolute; cursor: pointer; display: inline-block; border: 2px solid #AAA; border-radius: 18px; -webkit-border-radius: 18px; -moz-border-radius: 18px; -khtml-border-radius: 18px; font-family: 'Courier New',Courier; font-size: 24px; color: #F0F0F0}
+.MathJax_MenuClose span {display: block; background-color: #AAA; border: 1.5px solid; border-radius: 18px; -webkit-border-radius: 18px; -moz-border-radius: 18px; -khtml-border-radius: 18px; line-height: 0; padding: 8px 0 6px}
+.MathJax_MenuClose:hover {color: white!important; border: 2px solid #CCC!important}
+.MathJax_MenuClose:hover span {background-color: #CCC!important}
+.MathJax_MenuClose:hover:focus {outline: none}
+</style><style type="text/css">#MathJax_Zoom {position: absolute; background-color: #F0F0F0; overflow: auto; display: block; z-index: 301; padding: .5em; border: 1px solid black; margin: 0; font-weight: normal; font-style: normal; text-align: left; text-indent: 0; text-transform: none; line-height: normal; letter-spacing: normal; word-spacing: normal; word-wrap: normal; white-space: nowrap; float: none; -webkit-box-sizing: content-box; -moz-box-sizing: content-box; box-sizing: content-box; box-shadow: 5px 5px 15px #AAAAAA; -webkit-box-shadow: 5px 5px 15px #AAAAAA; -moz-box-shadow: 5px 5px 15px #AAAAAA; -khtml-box-shadow: 5px 5px 15px #AAAAAA; filter: progid:DXImageTransform.Microsoft.dropshadow(OffX=2, OffY=2, Color='gray', Positive='true')}
+#MathJax_ZoomOverlay {position: absolute; left: 0; top: 0; z-index: 300; display: inline-block; width: 100%; height: 100%; border: 0; padding: 0; margin: 0; background-color: white; opacity: 0; filter: alpha(opacity=0)}
+#MathJax_ZoomFrame {position: relative; display: inline-block; height: 0; width: 0}
+#MathJax_ZoomEventTrap {position: absolute; left: 0; top: 0; z-index: 302; display: inline-block; border: 0; padding: 0; margin: 0; background-color: white; opacity: 0; filter: alpha(opacity=0)}
+</style></head>
+  <body class="post-template  pace-done" data-page="post" data-device="desktop"><div id="MathJax_Message" style="display: none;"></div><div class="pace  pace-inactive"><div class="pace-progress" data-progress-text="100%" data-progress="99" style="transform: translate3d(100%, 0px, 0px);">
+  <div class="pace-progress-inner"></div>
+</div>
+<div class="pace-activity"></div></div>
+    <header id="menu-button" class="expanded">
+      <a><i class="icon icon-list"></i></a>
+    </header>
+    <aside class="cover" style="background: url(/content/images/2016/01/background.jpg) center/cover no-repeat fixed">
+  <div class="cover container">
+    <div class="profile">
+      <a id="avatar-link" title="link to homepage for bestswifter" href="https://bestswifter.com/#open">
+        <img src="./深入理解 iOS 开发中的锁_files/avator.jpg" alt="bestswifter avatar" class="profile avatar rounded hvr-buzz-out">
+        <h1 id="profile-title">bestswifter</h1>
+        <h3 id="profile-resume"></h3>
+      </a>
+
+      <hr class="divider long">
+      <p>欢迎来到 Kt 的 iOS 开发小站，我是张星宇，iOS 初级开发者，正向全栈的方向努力。喜欢研究问题的本质，讨厌一切不说人话的描述。</p>
+      <hr class="divider short">
+      <div class="navigation">
+        <div class="profile contact">
+          <nav class="navigation left">
+  <ul class="links">
+      <li class="nav-posts ">
+        <a href="https://bestswifter.com/#open">Posts</a>
+      </li>
+      <li class="nav- ">
+        <a href="https://about.bestswifter.com/">关于</a>
+      </li>
+      <li class="nav- ">
+        <a href="https://wx.xiaomiquan.com/mweb/views/joingroup/join_group.html?group_id=8481441222&amp;amp;secret=2guotf5fnqa9ovxxt7mac6rafzwczkw2&amp;amp;extra=d962a3de2e1f1a701f109c50f79e5acd61f26831192d1d7e419e500e5b0832be">联系我</a>
+      </li>
+  </ul>
+</nav>
+
+          
+<nav class="navigation right">
+  <ul class="social expanded">
+  <li class="social item hvr-grow-rotate">
+    <a href="http://www.jianshu.com/users/3e55748920d2/latest_articles" title="@KtZhang 的简书" target="_blank">
+      <i class="social fa fa-book"></i>
+      <span class="label">简书</span>
+    </a>
+  </li>
+
+  <!-- Github -->
+  <li class="social item hvr-grow-rotate">
+    <a href="https://github.com/bestswifter" title="@KtZhang 的 Github" target="_blank">
+      <i class="social fa fa-github"></i>
+      <span class="label">Github</span>
+    </a>
+  </li>
+
+  <!-- Weibo -->
+  <li class="social item hvr-grow-rotate">
+    <a href="http://weibo.com/bestswifter" title="@bestswifter" target="_blank">
+      <i class="social fa fa-weibo"></i>
+      <span class="label">weibo</span>
+    </a>
+  </li>
+
+  <!-- RSS -->
+  <li class="social item hvr-grow-rotate">
+    <a href="https://bestswifter.com/rss/" rel="author" title="RSS" target="_blank">
+      <i class="social fa fa-rss"></i>
+      <span class="label">RSS</span>
+    </a>
+  </li>
+
+  <!-- Email -->
+  <li class="social item hvr-grow-rotate">
+    <a href="mailto:ktzhang@bestswifter.com" title="邮件联系我">
+      <i class="social fa fa-envelope"></i>
+      <span class="label">Email</span>
+    </a>
+  </li>
+
+  </ul>
+</nav>
+          <section class="icon icon-search" id="search-container">
+  <hr class="divider short">
+  <form target="blank" id="search-form" action="https://www.google.com/#q=site:https://bestswifter.com">
+    <input type="text" name="search" placeholder="git, css, javascript,..." id="search-field">
+  </form>
+</section>
+        </div>
+      </div>
+    </div>
+  </div>
+</aside>
+    <main>
+      <section id="search-results"></section>
+      <section class="content">
+        
+
+  <article class="post">
+    <header>
+      <div class="post meta">
+        <time datetime="2016-10-07T08:10">774 days ago</time>
+        <span class="post tags"></span>
+
+
+        <span class="post reading-time"> ~ <span>3 min</span> read.</span>
+      </div>
+      <a title="Tweet &#39;深入理解 iOS 开发中的锁&#39;" href="https://twitter.com/intent/tweet?text=%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3%20iOS%20%E5%BC%80%E5%8F%91%E4%B8%AD%E7%9A%84%E9%94%81%20%C2%BB&amp;hashtags=&amp;url=https://bestswifter.com/ios-lock/">
+        
+        <h1 class="icon-reverse icon-social-twitter-post" id="post-title">深入理解 iOS 开发中的锁</h1>
+      </a>
+    </header>
+
+    <div id="post-content" class="post">
+      <h1 id="" class="deep-link"><a href="https://bestswifter.com/ios-lock/#" class="title-link">摘要</a></h1>
+
+<p>本文的目的不是介绍 iOS 中各种锁如何使用，一方面笔者没有大量的实战经验，另一方面这样的文章相当多，比如 <a href="http://www.jianshu.com/p/938d68ed832c">iOS中保证线程安全的几种方式与性能对比</a>、<a href="http://www.jianshu.com/p/ddbe44064ca4">iOS 常见知识点（三）：Lock</a>。本文也不会详细介绍锁的具体实现原理，这会涉及到太多相关知识，笔者不敢误人子弟。</p>
+
+<p>本文要做的就是简单的分析 iOS 开发中常见的几种锁如何实现，以及优缺点是什么，为什么会有性能上的差距，最终会简单的介绍锁的底层实现原理。水平有限，如果不慎有误，欢迎交流指正。同时建议读者在阅读本文以前，对 OC 中各种锁的使用方法先有大概的认识。</p>
+
+<p>在 ibireme 的 <a href="http://blog.ibireme.com/2016/01/16/spinlock_is_unsafe_in_ios/">不再安全的 OSSpinLock</a> 一文中，有一张图片简单的比较了各种锁的加解锁性能:</p>
+
+<p><img src="./深入理解 iOS 开发中的锁_files/lock_benchmark.png" alt="来源：ibireme"></p>
+
+<p>本文会按照从上至下(速度由快至慢)的顺序分析每个锁的实现原理。需要说明的是，加解锁速度不表示锁的效率，只表示加解锁操作在执行时的复杂程度，下文会通过具体的例子来解释。</p>
+
+<h1 id="osspinlock" class="deep-link"><a href="https://bestswifter.com/ios-lock/#osspinlock" class="title-link">OSSpinLock</a></h1>
+
+<p>上述文章中已经介绍了 OSSpinLock 不再安全，主要原因发生在低优先级线程拿到锁时，高优先级线程进入忙等(busy-wait)状态，消耗大量 CPU 时间，从而导致低优先级线程拿不到 CPU 时间，也就无法完成任务并释放锁。这种问题被称为优先级反转。</p>
+
+<p>为什么忙等会导致低优先级线程拿不到时间片？这还得从操作系统的线程调度说起。</p>
+
+<p>现代操作系统在管理普通线程时，通常采用时间片轮转算法(Round Robin，简称 RR)。每个线程会被分配一段时间片(quantum)，通常在 10-100 毫秒左右。当线程用完属于自己的时间片以后，就会被操作系统挂起，放入等待队列中，直到下一次被分配时间片。</p>
+
+<h2 id="" class="deep-link"><a href="https://bestswifter.com/ios-lock/#" class="title-link">自旋锁的实现原理</a></h2>
+
+<p>自旋锁的目的是为了确保临界区只有一个线程可以访问，它的使用可以用下面这段伪代码来描述:</p>
+
+<pre><code class="language-c hljs cpp"><span class="hljs-keyword">do</span> {  
+    Acquire Lock
+        Critical section  <span class="hljs-comment">// 临界区</span>
+    Release Lock
+        Reminder section <span class="hljs-comment">// 不需要锁保护的代码</span>
+}
+</code></pre>
+
+<p>在 Acquire Lock 这一步，我们申请加锁，目的是为了保护临界区(Critical Section) 中的代码不会被多个线程执行。</p>
+
+<p>自旋锁的实现思路很简单，理论上来说只要定义一个全局变量，用来表示锁的可用情况即可，伪代码如下:</p>
+
+<pre><code class="language-c hljs cpp"><span class="hljs-keyword">bool</span> lock = <span class="hljs-literal">false</span>; <span class="hljs-comment">// 一开始没有锁上，任何线程都可以申请锁  </span>
+<span class="hljs-keyword">do</span> {  
+    <span class="hljs-keyword">while</span>(lock); <span class="hljs-comment">// 如果 lock 为 true 就一直死循环，相当于申请锁</span>
+    lock = <span class="hljs-literal">true</span>; <span class="hljs-comment">// 挂上锁，这样别的线程就无法获得锁</span>
+        Critical section  <span class="hljs-comment">// 临界区</span>
+    lock = <span class="hljs-literal">false</span>; <span class="hljs-comment">// 相当于释放锁，这样别的线程可以进入临界区</span>
+        Reminder section <span class="hljs-comment">// 不需要锁保护的代码        </span>
+}
+</code></pre>
+
+<p>注释写得很清楚，就不再逐行分析了。可惜这段代码存在一个问题: 如果一开始有多个线程同时执行 while 循环，他们都不会在这里卡住，而是继续执行，这样就无法保证锁的可靠性了。解决思路也很简单，只要确保申请锁的过程是原子操作即可。</p>
+
+<h2 id="" class="deep-link"><a href="https://bestswifter.com/ios-lock/#" class="title-link">原子操作</a></h2>
+
+<p>狭义上的原子操作表示一条不可打断的操作，也就是说线程在执行操作过程中，不会被操作系统挂起，而是一定会执行完。在单处理器环境下，一条汇编指令显然是原子操作，因为中断也要通过指令来实现。</p>
+
+<p>然而在多处理器的情况下，能够被多个处理器同时执行的操作任然算不上原子操作。因此，真正的原子操作必须由硬件提供支持，比如 x86 平台上如果在指令前面加上 “LOCK” 前缀，对应的机器码在执行时会把总线锁住，使得其他 CPU不能再执行相同操作，从而从硬件层面确保了操作的原子性。</p>
+
+<p>这些非常底层的概念无需完全掌握，我们只要知道上述申请锁的过程，可以用一个原子性操作 <code>test_and_set</code> 来完成，它用伪代码可以这样表示:</p>
+
+<pre><code class="language-c hljs cpp"><span class="hljs-function"><span class="hljs-keyword">bool</span> <span class="hljs-title">test_and_set</span> <span class="hljs-params">(<span class="hljs-keyword">bool</span> *target)</span> </span>{  
+    <span class="hljs-keyword">bool</span> rv = *target; 
+    *target = TRUE; 
+    <span class="hljs-keyword">return</span> rv;
+}
+</code></pre>
+
+<p>这段代码的作用是把 target 的值设置为 1，并返回原来的值。当然，在具体实现时，它通过一个原子性的指令来完成。</p>
+
+<h2 id="" class="deep-link"><a href="https://bestswifter.com/ios-lock/#" class="title-link">自旋锁的总结</a></h2>
+
+<p>至此，自旋锁的实现原理就很清楚了:</p>
+
+<pre><code class="language-c hljs cpp"><span class="hljs-keyword">bool</span> lock = <span class="hljs-literal">false</span>; <span class="hljs-comment">// 一开始没有锁上，任何线程都可以申请锁  </span>
+<span class="hljs-keyword">do</span> {  
+    <span class="hljs-keyword">while</span>(test_and_set(&amp;lock); <span class="hljs-comment">// test_and_set 是一个原子操作</span>
+        Critical section  <span class="hljs-comment">// 临界区</span>
+    lock = <span class="hljs-literal">false</span>; <span class="hljs-comment">// 相当于释放锁，这样别的线程可以进入临界区</span>
+        Reminder section <span class="hljs-comment">// 不需要锁保护的代码        </span>
+}
+</code></pre>
+
+<p>如果临界区的执行时间过长，使用自旋锁不是个好主意。之前我们介绍过时间片轮转算法，线程在多种情况下会退出自己的时间片。其中一种是用完了时间片的时间，被操作系统强制抢占。除此以外，当线程进行 I/O 操作，或进入睡眠状态时，都会主动让出时间片。显然在 while 循环中，线程处于忙等状态，白白浪费 CPU 时间，最终因为超时被操作系统抢占时间片。如果临界区执行时间较长，比如是文件读写，这种忙等是毫无必要的。</p>
+
+<h1 id="" class="deep-link"><a href="https://bestswifter.com/ios-lock/#" class="title-link">信号量</a></h1>
+
+<p>之前我在 <a href="https://bestswifter.com/#open">介绍 GCD 底层实现的文章</a> 中简单描述了信号量 <code>dispatch_semaphore_t</code> 的实现原理，它最终会调用到 <code>sem_wait</code> 方法，这个方法在 glibc 中被实现如下:</p>
+
+<pre><code class="language-c hljs cpp"><span class="hljs-function"><span class="hljs-keyword">int</span> <span class="hljs-title">sem_wait</span> <span class="hljs-params">(<span class="hljs-keyword">sem_t</span> *sem)</span> </span>{  
+  <span class="hljs-keyword">int</span> *futex = (<span class="hljs-keyword">int</span> *) sem;
+  <span class="hljs-keyword">if</span> (atomic_decrement_if_positive (futex) &gt; <span class="hljs-number">0</span>)
+    <span class="hljs-keyword">return</span> <span class="hljs-number">0</span>;
+  <span class="hljs-keyword">int</span> err = lll_futex_wait (futex, <span class="hljs-number">0</span>);
+    <span class="hljs-keyword">return</span> <span class="hljs-number">-1</span>;
+)
+</code></pre>
+
+<p>首先会把信号量的值减一，并判断是否大于零。如果大于零，说明不用等待，所以立刻返回。具体的等待操作在 <code>lll_futex_wait</code> 函数中实现，<strong>lll</strong> 是 low level lock 的简称。这个函数通过汇编代码实现，调用到 <code>SYS_futex</code> 这个系统调用，使线程进入睡眠状态，主动让出时间片，这个函数在互斥锁的实现中，也有可能被用到。</p>
+
+<p>主动让出时间片并不总是代表效率高。让出时间片会导致操作系统切换到另一个线程，这种上下文切换通常需要 10 微秒左右，而且至少需要两次切换。如果等待时间很短，比如只有几个微秒，忙等就比线程睡眠更高效。</p>
+
+<p>可以看到，自旋锁和信号量的实现都非常简单，这也是两者的加解锁耗时分别排在第一和第二的原因。再次强调，加解锁耗时不能准确反应出锁的效率(比如时间片切换就无法发生)，它只能从一定程度上衡量锁的实现复杂程度。</p>
+
+<h1 id="pthread_mutex" class="deep-link"><a href="https://bestswifter.com/ios-lock/#pthread_mutex" class="title-link">pthread_mutex</a></h1>
+
+<p>pthread 表示 POSIX thread，定义了一组跨平台的线程相关的 API，pthread_mutex 表示互斥锁。互斥锁的实现原理与信号量非常相似，不是使用忙等，而是阻塞线程并睡眠，需要进行上下文切换。</p>
+
+<p>互斥锁的常见用法如下:</p>
+
+<pre><code class="language-c hljs cpp"><span class="hljs-keyword">pthread_mutexattr_t</span> attr;  
+pthread_mutexattr_init(&amp;attr);  
+pthread_mutexattr_settype(&amp;attr, PTHREAD_MUTEX_NORMAL);  <span class="hljs-comment">// 定义锁的属性</span>
+
+<span class="hljs-keyword">pthread_mutex_t</span> mutex;  
+pthread_mutex_init(&amp;mutex, &amp;attr) <span class="hljs-comment">// 创建锁</span>
+
+pthread_mutex_lock(&amp;mutex); <span class="hljs-comment">// 申请锁  </span>
+    <span class="hljs-comment">// 临界区</span>
+pthread_mutex_unlock(&amp;mutex); <span class="hljs-comment">// 释放锁  </span>
+</code></pre>
+
+<p>对于 pthread_mutex 来说，它的用法和之前没有太大的改变，比较重要的是锁的类型，可以有 <code>PTHREAD_MUTEX_NORMAL</code>、<code>PTHREAD_MUTEX_ERRORCHECK</code>、<code>PTHREAD_MUTEX_RECURSIVE</code> 等等，具体的特性就不做解释了，网上有很多相关资料。</p>
+
+<p>一般情况下，一个线程只能申请一次锁，也只能在获得锁的情况下才能释放锁，多次申请锁或释放未获得的锁都会导致崩溃。假设在已经获得锁的情况下再次申请锁，线程会因为等待锁的释放而进入睡眠状态，因此就不可能再释放锁，从而导致死锁。</p>
+
+<p>然而这种情况经常会发生，比如某个函数申请了锁，在临界区内又递归调用了自己。辛运的是 <code>pthread_mutex</code> 支持递归锁，也就是允许一个线程递归的申请锁，只要把 attr 的类型改成 <code>PTHREAD_MUTEX_RECURSIVE</code> 即可。</p>
+
+<h2 id="" class="deep-link"><a href="https://bestswifter.com/ios-lock/#" class="title-link">互斥锁的实现</a></h2>
+
+<p>互斥锁在申请锁时，调用了 <code>pthread_mutex_lock</code> 方法，它在不同的系统上实现各有不同，有时候它的内部是使用信号量来实现，即使不用信号量，也会调用到 <code>lll_futex_wait</code> 函数，从而导致线程休眠。</p>
+
+<p>上文说到如果临界区很短，忙等的效率也许更高，所以在有些版本的实现中，会首先尝试一定次数(比如 1000 次)的 test<em>and</em>test，这样可以在错误使用互斥锁时提高性能。</p>
+
+<p>另外，由于 <code>pthread_mutex</code> 有多种类型，可以支持递归锁等，因此在申请加锁时，需要对锁的类型加以判断，这也就是为什么它和信号量的实现类似，但效率略低的原因。</p>
+
+<h1 id="nslock" class="deep-link"><a href="https://bestswifter.com/ios-lock/#nslock" class="title-link">NSLock</a></h1>
+
+<p>NSLock 是 Objective-C 以对象的形式暴露给开发者的一种锁，它的实现非常简单，通过宏，定义了 <code>lock</code> 方法:</p>
+
+<pre><code class="language-objc hljs objectivec"><span class="hljs-meta">#define    MLOCK \</span>
+- (<span class="hljs-keyword">void</span>) lock\
+{\
+  <span class="hljs-keyword">int</span> err = pthread_mutex_lock(&amp;_mutex);\
+  <span class="hljs-comment">// 错误处理 ……</span>
+}
+</code></pre>
+
+<p><code>NSLock</code> 只是在内部封装了一个 <code>pthread_mutex</code>，属性为 <code>PTHREAD_MUTEX_ERRORCHECK</code>，它会损失一定性能换来错误提示。</p>
+
+<p>这里使用宏定义的原因是，OC 内部还有其他几种锁，他们的 lock 方法都是一模一样，仅仅是内部 <code>pthread_mutex</code> 互斥锁的类型不同。通过宏定义，可以简化方法的定义。</p>
+
+<p><code>NSLock</code> 比 <code>pthread_mutex</code> 略慢的原因在于它需要经过方法调用，同时由于缓存的存在，多次方法调用不会对性能产生太大的影响。</p>
+
+<h1 id="nscondition" class="deep-link"><a href="https://bestswifter.com/ios-lock/#nscondition" class="title-link">NSCondition</a></h1>
+
+<p><code>NSCondition</code> 的底层是通过条件变量(condition variable) <code>pthread_cond_t</code> 来实现的。条件变量有点像信号量，提供了线程阻塞与信号机制，因此可以用来阻塞某个线程，并等待某个数据就绪，随后唤醒线程，比如常见的生产者-消费者模式。</p>
+
+<h2 id="" class="deep-link"><a href="https://bestswifter.com/ios-lock/#" class="title-link">如何使用条件变量</a></h2>
+
+<p>很多介绍  <code>pthread_cond_t</code> 的文章都会提到，它需要与互斥锁配合使用:</p>
+
+<pre><code class="language-c hljs cpp"><span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">consumer</span> <span class="hljs-params">()</span> </span>{ <span class="hljs-comment">// 消费者  </span>
+    pthread_mutex_lock(&amp;mutex);
+    <span class="hljs-keyword">while</span> (data == <span class="hljs-literal">NULL</span>) {
+        pthread_cond_wait(&amp;condition_variable_signal, &amp;mutex); <span class="hljs-comment">// 等待数据</span>
+    }
+    <span class="hljs-comment">// --- 有新的数据，以下代码负责处理 ↓↓↓↓↓↓</span>
+    <span class="hljs-comment">// temp = data;</span>
+    <span class="hljs-comment">// --- 有新的数据，以上代码负责处理 ↑↑↑↑↑↑</span>
+    pthread_mutex_unlock(&amp;mutex);
+}
+
+<span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">producer</span> <span class="hljs-params">()</span> </span>{  
+    pthread_mutex_lock(&amp;mutex);
+    <span class="hljs-comment">// 生产数据</span>
+    pthread_cond_signal(&amp;condition_variable_signal); <span class="hljs-comment">// 发出信号给消费者，告诉他们有了新的数据</span>
+    pthread_mutex_unlock(&amp;mutex);
+}
+</code></pre>
+
+<p>自然我们会有疑问:“如果不用互斥锁，只用条件变量会有什么问题呢？”。问题在于，<code>temp = data;</code> 这段代码不是线程安全的，也许在你把 data 读出来以前，已经有别的线程修改了数据。因此我们需要保证消费者拿到的数据是线程安全的。</p>
+
+<p>wait 方法除了会被 signal 方法唤醒，有时还会被虚假唤醒，所以需要这里 while 循环中的判断来做二次确认。</p>
+
+<h2 id="" class="deep-link"><a href="https://bestswifter.com/ios-lock/#" class="title-link">为什么要使用条件变量</a></h2>
+
+<p>介绍条件变量的文章非常多，但大多都对一个一个基本问题避而不谈:“为什么要用条件变量？它仅仅是控制了线程的执行顺序，用信号量或者互斥锁能不能模拟出类似效果？”</p>
+
+<p>网上的相关资料比较少，我简单说一下个人看法。信号量可以一定程度上替代 condition，但是互斥锁不行。在以上给出的生产者-消费者模式的代码中， <code>pthread_cond_wait</code> 方法的本质是锁的转移，消费者放弃锁，然后生产者获得锁，同理，<code>pthread_cond_signal</code> 则是一个锁从生产者到消费者转移的过程。</p>
+
+<p>如果使用互斥锁，我们需要把代码改成这样:</p>
+
+<pre><code class="language-c hljs cpp"><span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">consumer</span> <span class="hljs-params">()</span> </span>{ <span class="hljs-comment">// 消费者  </span>
+    pthread_mutex_lock(&amp;mutex);
+    <span class="hljs-keyword">while</span> (data == <span class="hljs-literal">NULL</span>) {
+        pthread_mutex_unlock(&amp;mutex);
+        pthread_mutex_lock(&amp;another_lock)  <span class="hljs-comment">// 相当于 wait 另一个互斥锁</span>
+        pthread_mutex_lock(&amp;mutex);
+    }
+    pthread_mutex_unlock(&amp;mutex);
+}
+</code></pre>
+
+<p>这样做存在的问题在于，在等待 another<em>lock 之前， 生产者有可能先执行代码， 从而释放了 another</em>lock。也就是说，我们无法保证释放锁和等待另一个锁这两个操作是原子性的，也就无法保证“先等待、后释放 another_lock” 这个顺序。</p>
+
+<p>用信号量则不存在这个问题，因为信号量的等待和唤醒并不需要满足先后顺序，信号量只表示有多少个资源可用，因此不存在上述问题。然而与 <code>pthread_cond_wait</code> 保证的原子性锁转移相比，使用信号量似乎存在一定风险(暂时没有查到非原子性操作有何不妥)。</p>
+
+<p>不过，使用 condition 有一个好处，我们可以调用 <code>pthread_cond_broadcast</code> 方法通知所有等待中的消费者，这是使用信号量无法实现的。</p>
+
+<h2 id="nscondition" class="deep-link"><a href="https://bestswifter.com/ios-lock/#nscondition" class="title-link">NSCondition 的做法</a></h2>
+
+<p><code>NSCondition</code> 其实是封装了一个互斥锁和条件变量， 它把前者的 <code>lock</code> 方法和后者的 <code>wait/signal</code> 统一在 <code>NSCondition</code> 对象中，暴露给使用者:</p>
+
+<pre><code class="language-objc hljs objectivec">- (<span class="hljs-keyword">void</span>) signal {
+  pthread_cond_signal(&amp;_condition);
+}
+
+<span class="hljs-comment">// 其实这个函数是通过宏来定义的，展开后就是这样</span>
+- (<span class="hljs-keyword">void</span>) lock {
+  <span class="hljs-keyword">int</span> err = pthread_mutex_lock(&amp;_mutex);
+}
+</code></pre>
+
+<p>它的加解锁过程与 <code>NSLock</code> 几乎一致，理论上来说耗时也应该一样(实际测试也是如此)。在图中显示它耗时略长，我猜测有可能是测试者在每次加解锁的前后还附带了变量的初始化和销毁操作。</p>
+
+<h1 id="nsrecursivelock" class="deep-link"><a href="https://bestswifter.com/ios-lock/#nsrecursivelock" class="title-link">NSRecursiveLock</a></h1>
+
+<p>上文已经说过，递归锁也是通过 <code>pthread_mutex_lock</code> 函数来实现，在函数内部会判断锁的类型，如果显示是递归锁，就允许递归调用，仅仅将一个计数器加一，锁的释放过程也是同理。</p>
+
+<p><code>NSRecursiveLock</code> 与 <code>NSLock</code> 的区别在于内部封装的 <code>pthread_mutex_t</code> 对象的类型不同，前者的类型为 <code>PTHREAD_MUTEX_RECURSIVE</code>。 </p>
+
+<h1 id="nsconditionlock" class="deep-link"><a href="https://bestswifter.com/ios-lock/#nsconditionlock" class="title-link">NSConditionLock</a></h1>
+
+<p><code>NSConditionLock</code> 借助 <code>NSCondition</code> 来实现，它的本质就是一个生产者-消费者模型。“条件被满足”可以理解为生产者提供了新的内容。<code>NSConditionLock</code> 的内部持有一个 <code>NSCondition</code> 对象，以及 <code>_condition_value</code> 属性，在初始化时就会对这个属性进行赋值:</p>
+
+<pre><code class="language-objc hljs objectivec"><span class="hljs-comment">// 简化版代码</span>
+- (<span class="hljs-keyword">id</span>) initWithCondition: (<span class="hljs-built_in">NSInteger</span>)value {
+    <span class="hljs-keyword">if</span> (<span class="hljs-literal">nil</span> != (<span class="hljs-keyword">self</span> = [<span class="hljs-keyword">super</span> init])) {
+        _condition = [<span class="hljs-built_in">NSCondition</span> new]
+        _condition_value = value;
+    }
+    <span class="hljs-keyword">return</span> <span class="hljs-keyword">self</span>;
+}
+</code></pre>
+
+<p>它的 <code>lockWhenCondition</code> 方法其实就是消费者方法:</p>
+
+<pre><code class="language-objc hljs objectivec">- (<span class="hljs-keyword">void</span>) lockWhenCondition: (<span class="hljs-built_in">NSInteger</span>)value {
+    [_condition lock];
+    <span class="hljs-keyword">while</span> (value != _condition_value) {
+        [_condition wait];
+    }
+}
+</code></pre>
+
+<p>对应的 <code>unlockWhenCondition</code> 方法则是生产者，使用了 <code>broadcast</code> 方法通知了所有的消费者:</p>
+
+<pre><code class="language-objc hljs objectivec">- (<span class="hljs-keyword">void</span>) unlockWithCondition: (<span class="hljs-built_in">NSInteger</span>)value {
+    _condition_value = value;
+    [_condition broadcast];
+    [_condition unlock];
+}
+</code></pre>
+
+<h1 id="synchronized" class="deep-link"><a href="https://bestswifter.com/ios-lock/#synchronized" class="title-link">@synchronized</a></h1>
+
+<p>这其实是一个 OC 层面的锁， 主要是通过牺牲性能换来语法上的简洁与可读。</p>
+
+<p>我们知道 @synchronized 后面需要紧跟一个 OC 对象，它实际上是把这个对象当做锁来使用。这是通过一个哈希表来实现的，OC 在底层使用了一个互斥锁的数组(你可以理解为锁池)，通过对对象去哈希值来得到对应的互斥锁。</p>
+
+<p>具体的实现原理可以参考这篇文章: <a href="http://yulingtianxia.com/blog/2015/11/01/More-than-you-want-to-know-about-synchronized/">关于 @synchronized，这儿比你想知道的还要多</a></p>
+
+<h1 id="" class="deep-link"><a href="https://bestswifter.com/ios-lock/#" class="title-link">参考资料</a></h1>
+
+<ol>
+<li><a href="http://pubs.opengroup.org/onlinepubs/7908799/xsh/pthread_mutex_lock.html">pthread<em>mutex</em>lock</a>  </li>
+<li><a href="https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/Multithreading/ThreadSafety/ThreadSafety.html">ThreadSafety</a>  </li>
+<li><a href="http://stackoverflow.com/questions/62814/difference-between-binary-semaphore-and-mutex">Difference between binary semaphore and mutex</a>  </li>
+<li><a href="http://yulingtianxia.com/blog/2015/11/01/More-than-you-want-to-know-about-synchronized/">关于 @synchronized，这儿比你想知道的还要多</a>  </li>
+<li><a href="https://github.com/lattera/glibc/blob/master/nptl/pthread_mutex_lock.c">pthread<em>mutex</em>lock.c 源码</a>  </li>
+<li><a href="http://blog.csdn.net/Javadino/article/details/2891388">[Pthread] Linux中的线程同步机制(二)--In Glibc</a>  </li>
+<li><a href="http://casatwy.com/pthreadde-ge-chong-tong-bu-ji-zhi.html">pthread的各种同步机制</a>  </li>
+<li><a href="https://android.googlesource.com/platform/external/pthreads/+/master/pthread_cond_wait.c">pthread<em>cond</em>wait</a>  </li>
+<li><a href="http://stackoverflow.com/questions/3513045/conditional-variable-vs-semaphore">Conditional Variable vs Semaphore</a></li>
+</ol>
+    </div>
+
+    <div class="post related">
+        <a rel="prev" id="prev-btn" class="btn small square" href="https://bestswifter.com/ruby-dsl/">← 白话 Ruby 与 DSL 以及在 iOS 开发中的运用</a>
+
+        <a rel="next" id="next-btn" class="btn small square" href="https://bestswifter.com/pop/">从 Swift 的面向协议编程说开去 →</a>
+    </div>
+
+    <!-- <footer class="post comments">
+  <div id="disqus_thread"></div>
+  <script type="text/javascript">
+  (function() {
+  var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+  dsq.src = '//' + window.disqus_shortname + '.disqus.com/embed.js';
+  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+  </script>
+  <noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</footer>
+ -->
+  </article>
+
+        <footer>
+  <span class="copyright">
+    © 2018. All rights reserved.<br> 由 <a href="https://bestswifter.com/" target="_blank">bestswifter</a> 根据 <a href="https://github.com/Kikobeats/uno-zen" target="_blank">uno-zen</a> 改编而来，代码在 <a href="https://github.com/bestswifter/uno-zen" target="_blank">GitHub</a> 上开源..
+  </span>
+</footer>
+      </section>
+    </main>
+    <script type="text/javascript" src="./深入理解 iOS 开发中的锁_files/zepto.min.js"></script>
+<script>jQuery = Zepto</script>
+
+<script>
+(function(){
+    var bp = document.createElement('script');
+    var curProtocol = window.location.protocol.split(':')[0];
+    if (curProtocol === 'https') {
+        bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';        
+    }
+    else {
+        bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+    }
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(bp, s);
+})();
+</script>
+
+<script>  
+  (function() {
+    markjax(null, document.getElementsByClassName("post-content")[0]);
+  })();
+</script>
+    <script src="./深入理解 iOS 开发中的锁_files/highlight.pack.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+    <script src="./深入理解 iOS 开发中的锁_files/uno-zen.common.js" type="text/javascript" charset="utf-8"></script>
+      <script src="./深入理解 iOS 开发中的锁_files/uno-zen.post.js" type="text/javascript" charset="utf-8"></script>
+    <script>
+  if (window.ga_id) {
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+    ga('create', window.ga_id, 'auto');
+    ga('require', 'linkid', 'linkid.js');
+    ga('send', 'pageview');
+  }
+</script>
+    <script type="text/javascript" src="./深入理解 iOS 开发中的锁_files/MathJax(1).js"></script>  
+    <script type="text/x-mathjax-config">  
+        MathJax.Hub.Config({
+            tex2jax: {
+                inlineMath: [['$','$'], ['\\\\(','\\\\)']],
+                processEscapes: true
+            }
+        });
+    </script>  
+  
+
+</body></html>
